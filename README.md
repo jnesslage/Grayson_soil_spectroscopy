@@ -1,5 +1,5 @@
 # Grayson_soil_spectroscopy
-A open-access VIS-NIR soil spectroscopy dataset for soil carbon modeling.
+A open-access VIS-NIR soil spectroscopy dataset for soil carbon, nitrogen, and salinity modeling.
 
 ## Background
 
