@@ -1,0 +1,192 @@
+---
+title: "prospectr_soil_spectra"
+author: "Jacob Nesslage"
+date: "2024-03-06"
+output: html_document
+---
+```{r}
+require(prospectr)
+```
+
+Read in data 
+
+```{r}
+fp <- "Z:/Projects/Grayson_NB/Outputs/soil_spectra/soil_spectra_2022_withenvs.csv"
+spec.l <- read_csv(fp)
+spec.l
+```
+
+Wrangle data to wide format
+
+```{r}
+spec.wide <- spec.l %>% select (Wavelength, mean, Class1, Class2, Kit_Number, X, Y, transect,Moisture,Salinity,C,N,bulk_density) %>% 
+  pivot_wider(., names_from = Wavelength, values_from = mean)
+spec.wide
+```
+
+Isolate spectra and convert to matrix format
+
+```{r convert spectra to matrix}
+spc <- as.matrix(spec.wide[,12:2162])/100
+
+# Plot the first spectrum
+plot(x = as.numeric(colnames(spc)),
+     y = spc[12, ],
+     type = "l",
+     lwd = 1.5,
+     xlab = "Wavelength", 
+     ylab = "Reflectance") 
+```
+
+Apply Savitzky-Golay smoothing and calculate derivatives of spectra
+
+```{r Savitzky-Golay filtering and derivatives}
+sg <- savitzkyGolay(X = spc, p = 3, w = 25, m = 0)
+
+plot(x = as.numeric(colnames(sg)),
+     y = sg[1, ],
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Reflectance") 
+
+sg_1st <- savitzkyGolay(X = spc, p = 3, w = 25, m = 1)
+
+plot(x = as.numeric(colnames(sg_1st)),
+     y = sg_1st[2, ],
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Derivative of Reflectance") 
+
+
+
+```
+
+Apply conntinuum removal algorithm to spectra 
+
+```{r continnum removal}
+# type of data: 'R' for reflectance (default), 'A' for absorbance
+cr <- continuumRemoval(X = sg, type = "R")
+# plot of the 10 first abs spectra
+matplot(as.numeric(colnames(sg)),
+        t(sg[1:4,]),
+        type = "l",
+        lty = 1,
+        ylim = c(0,1),
+        xlab="Wavelength", 
+        ylab="Reflectance")
+matlines(as.numeric(colnames(sg)), lty = 1, t(cr[1:4, ]))
+grid()
+```
+
+Principal Component Analysis of Spectra
+
+```{r}
+spec.pca <- prcomp(sg, scale = T)
+spec.pca
+pca_df <- spec.pca$rotation
+```
+
+
+
+Merge metadata with Savitzky-Golay spectra, derivative spectra, and continuum removal spectra
+
+```{r merge dataframes together}
+metadata <- spec.wide[,1:11]
+
+final_sg <- cbind(metadata,sg) %>%
+  filter(C != is.na(C))
+write.csv(final_sg,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_savitzky_golay_spectra.csv")
+
+final_sg_1st <- cbind(metadata,sg_1st) %>%
+  filter(C != is.na(C))
+write.csv(final_sg_1st,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_savitzky_golay_derivative.csv")
+
+final_cr <- cbind(metadata,cr) %>%
+  filter(C != is.na(C))
+write.csv(final_cr,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_continuum_removal.csv")
+
+final_pca <- cbind(metadata,t(pca_df)) %>%
+  filter(C != is.na(C))
+write.csv(final_pca,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_PCA.csv")
+```
+
+Calculate Pearson's Correlation for %C and each band for the three datasets
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations <- apply(as.data.frame(final_sg[,12:2138]), 2, function(column) cor(final_sg$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data <- data.frame(Wavelength = names(correlations), Correlation = correlations)
+
+# Summarize the results
+summary(correlation_data)
+
+#
+plot(x = correlation_data$Wavelength,
+     y = correlation_data$Correlation,
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Correlation of Spectra and %C") 
+```
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations <- apply(as.data.frame(final_sg_1st[,12:2138]), 2, function(column) cor(final_sg$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data <- data.frame(Wavelength = names(correlations), Correlation = correlations)
+
+# Summarize the results
+summary(correlation_data)
+
+#
+plot(x = correlation_data$Wavelength,
+     y = correlation_data$Correlation,
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Correlation of 1st Derivative and %C") 
+```
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations <- apply(as.data.frame(final_cr[,12:2138]), 2, function(column) cor(final_cr$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data <- data.frame(Wavelength = names(correlations), Correlation = correlations)
+
+# Summarize the results
+summary(correlation_data)
+
+#
+plot(x = correlation_data$Wavelength,
+     y = correlation_data$Correlation,
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Correlation between Continuum Removal and %C")
+```
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations <- apply(as.data.frame(final_pca[,12:2138]), 2, function(column) cor(final_pca$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data <- data.frame(Wavelength = names(correlations), Correlation = correlations)
+
+# Summarize the results
+summary(correlation_data)
+
+#
+plot(x = correlation_data$Wavelength,
+     y = correlation_data$Correlation,
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Correlation between PCA and %C")
+```
+
