@@ -27,7 +27,7 @@ Fig. 2: Pearson's Correlation between %C and the first derivative of Savitzky-Go
 
 ![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_cr.png?raw=true)
 
-Fig. 2: Pearson's Correlation between %C and the Savitzky-Golay smoothed spectra after continuum removal.
+Fig. 3: Pearson's Correlation between %C and the Savitzky-Golay smoothed spectra after continuum removal.
 
 ![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_pca.png?raw=true)
 
