@@ -16,3 +16,9 @@ To aid in analysis and modeling, I have provided a series of Pearson's correlati
 
 
 ![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_sg.png?raw=true)
+
+![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_sg_1stder.png?raw=true)
+
+![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_cr.png?raw=true)
+
+![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_PCA.png?raw=true)
