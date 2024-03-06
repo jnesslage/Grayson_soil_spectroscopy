@@ -13,12 +13,18 @@ Correlation Plots:
 
 To aid in analysis and modeling, I have provided a series of Pearson's correlation plots for each of the 4 datasets and % total C.
 
-
-
 ![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_sg.png?raw=true)
+
+Fig. 1: Pearson's Correlation between %C and Savitzky-Golay smoothed spectra.
 
 ![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_sg_1stder.png?raw=true)
 
+Fig. 2: Pearson's Correlation between %C and the first derivative of Savitzky-Golay smoothed spectra.
+
 ![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_cr.png?raw=true)
 
-![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_PCA.png?raw=true)
+Fig. 2: Pearson's Correlation between %C and the Savitzky-Golay smoothed spectra after continuum removal.
+
+![alt text](https://github.com/jnesslage/Grayson_soil_spectroscopy//blob/main/corr_plot_pca.png?raw=true)
+
+Fig. 4: Pearson's Correlation between %C and the principal components of the Savitzky-Golay smoothed spectra.
