@@ -1,5 +1,5 @@
 # Grayson_soil_spectroscopy
-A open-access VIS-NIR soil spectroscopy dataset for soil carbon, nitrogen, and salinity modeling.
+A open-access VIS-NIR soil spectroscopy dataset of the Grayson Riverbend Preserve for exploratory data analysis. Potential modeling outputs with this dataset include soil carbon, nitrogen, and salinity modeling.
 
 ## Background
 
