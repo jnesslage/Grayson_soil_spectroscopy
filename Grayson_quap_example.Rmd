@@ -1,0 +1,98 @@
+---
+title: "Grayson_quap_example"
+author: "Jacob Nesslage"
+date: "2024-03-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+require(rethinking)
+require(tidyverse)
+```
+
+Read spectral data
+
+```{r}
+#specdf <- read.csv(file.choose())
+specdf <- read.csv("Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_savitzky_golay_derivative.csv")
+```
+
+Do some exploratory data analysis to understand the relationship between %N and spectra
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations_C <- apply(as.data.frame(specdf[,13:2138]), 2, function(column) cor(specdf$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data_C <- data.frame(Wavelength = names(correlations_C), Correlation = correlations_C)
+
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations_N <- apply(as.data.frame(specdf[,13:2138]), 2, function(column) cor(specdf$N, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data_N <- data.frame(Wavelength = names(correlations_N), Correlation = correlations_N)
+
+
+```
+
+Choose some data based on correlations
+
+```{r}
+model_data_N <- as.data.frame(specdf) %>%
+  select(N,X821,X1713,X2261)
+summary(model_data_N)
+
+model_data_C <- as.data.frame(specdf) %>%
+  select(C,X821,X1713,X2261)
+summary(model_data_C)
+```
+
+Look to histograms to inform model choices
+
+```{r}
+hist(model_data_N$X821,breaks=10)
+hist(model_data_N$X1713,breaks=10)
+hist(model_data_N$X2261,breaks=10)
+hist(model_data_N$N,breaks=10)
+hist(model_data_C$C,breaks=10)
+```
+
+Build initial quap model
+
+```{r}
+formula_C <- alist( C ~ dnorm(mu, sigma),
+        mu <- a + b1 * X821, #+  b2 * X1712 + b3 * X2261,
+        a ~ dnorm(1.7, 0.2),
+        b1 ~ dnorm(0.00035, 0.00005),
+     #   b2 ~ dnorm(0.00001, 0.00001),
+      #  b3 ~ dnorm(0.00001, 0.00001),
+        sigma ~ dexp(1)
+        )
+c <- quap(formula_C,data = specdf)
+
+precis(c)
+plot(precis(c))
+c
+
+formula_N <- alist( N ~ dnorm(mu, sigma),
+        mu <- a + b1 * X821 +  b2 * X1712 + b3 * X2261,
+        a ~ dnorm(0.16, 0.08),
+        b1 ~ dnorm(0.00035, 0.00005),
+        b2 ~ dnorm(0.00001, 0.00001),
+        b3 ~ dnorm(0.00001, 0.00001),
+        sigma ~ dexp(1)
+        )
+n <- quap(formula_N,data = specdf)
+
+precis(n)
+plot(precis(n))
+n
+```
+
+
+Try an MCMC
+
+```{r}
+
+```
+
