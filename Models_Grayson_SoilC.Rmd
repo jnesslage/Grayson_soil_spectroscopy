@@ -1,0 +1,225 @@
+---
+title: "Models_Grayson_Soil_C"
+author: "Liying Li"
+date: "2024-03-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("rethinking")
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(prospectr)
+```
+
+
+```{r}
+fp1 <- "/Users/lily/Library/CloudStorage/Box-Box/Rethinking/Grayson_continuum_removal.csv"
+library(readr)
+spec <- read_csv(fp1)
+spec
+```
+
+```{r}
+# Load the necessary libraries
+library(dplyr)
+
+# Assuming your data frame is named 'df'
+spec1 <- spec %>%
+  mutate(Class1_numeric = ifelse(Class1 == "Agriculture", 1, 
+                                 ifelse(Class1 == "Riparian", 2, NA))) %>%
+  mutate(Class1_numeric = factor(Class1_numeric, levels = c(1, 2), labels = c("Agriculture", "Riparian")))
+
+# View the updated data frame
+print(spec1$Class1_numeric)
+```
+
+##ISE-PLS
+```{r}
+# Install and load necessary packages
+install.packages("plspm")
+library(plspm)
+```
+
+
+```{r}
+# Load necessary libraries
+library(plspm)
+library(pls)
+#library(rstanarm)
+
+
+
+# Function to calculate z predictor importance for each predictor
+calculate_z <- function(X, y, predictors) {
+  z_values <- numeric(length(predictors))
+  
+  pls_model <- plsr(y ~ ., data = data.frame(X[, predictors], y), ncomp = 1)  # Fit PLS model with selected predictors
+  
+  for (i in seq_along(predictors)) {
+    predictor <- predictors[i]
+    regression_coefficient <- coef(pls_model)[predictor, 1]  # Extract regression coefficient
+    predictor_std_dev <- sd(X[, predictor])  # Standard deviation of the predictor
+    z_values[i] <- abs(regression_coefficient * predictor_std_dev) / sum(abs(coef(pls_model)))  # Calculate z
+  }
+  
+  return(z_values)
+}
+
+
+# Function to fit a PLS model and return R2
+fit_pls <- function(X, y) {
+  pls_model <- plsr(y ~ X, ncomp = 3)  # Adjust ncomp as needed
+  return(summary(pls_model)$adjr2)
+}
+
+# Perform iterative stepwise elimination using z as the criterion
+iterative_stepwise_elimination <- function(X, y) {
+  predictors <- names(X)
+  best_R2 <- 0
+  best_subset <- NULL
+  best_R2_history <- c()  # Initialize an empty vector to store best R2 values
+  
+  while (length(predictors) > 0) {
+    z_values <- calculate_z(X, y, predictors)
+    min_z_index <- which.min(z_values)
+    current_best_predictor <- predictors[min_z_index]
+    current_subset <- setdiff(predictors, current_best_predictor)
+    current_R2 <- fit_pls(X[, current_subset], y)
+    
+    if (current_R2 > best_R2) {
+      best_R2 <- current_R2
+      best_subset <- current_subset
+      best_R2_history <- c(best_R2_history, best_R2)  # Append current best R2 to history
+      cat("Predictor removed:", current_best_predictor, "\n")
+    } else {
+      break
+    }
+    
+    predictors <- best_subset
+  }
+  
+  return(list(best_subset, best_R2_history))
+}
+
+
+# Define predictors and response variable
+X <- spec1[, -which(names(spec1) == "C")]
+y <- spec1$C
+
+# Perform iterative stepwise elimination
+result <- iterative_stepwise_elimination(X, y)
+
+# Extract selected predictors and R2 history
+selected_predictors <- result[[1]]
+best_R2_history <- result[[2]]
+
+# Plot number of selected predictors against R2
+plot(seq_along(selected_predictors), best_R2_history, type = "b", 
+     xlab = "Number of Selected Predictors", ylab = "Adjusted R2", 
+     main = "Adjusted R2 vs Number of Selected Predictors")
+
+
+```
+
+
+## Perform PLS get pls components for baysian models
+```{r}
+
+# Perform Partial Least Squares (PLS) analysis
+pls_model <- plspm(X, y, method = "simpls")
+
+# Summary of the PLS model
+summary(pls_model)
+
+# Plot the inner model (path coefficients)
+plot(pls_model, what = "inner")
+
+# Plot the scores of the components
+plot(pls_model, what = "scores")
+
+# Extract component scores from the PLS model
+pls_scores <- predict(pls_model, what = "scores")
+
+# Extract pls1 and pls2 from the component scores
+pls1 <- pls_scores[, 1]  # First component
+pls2 <- pls_scores[, 2]  # Second component
+
+
+
+```
+
+
+
+
+## Define the Bayesian PLS model in quap
+```{r}
+# Define the Bayesian PLS model
+bayesian_pls_model <- quap(
+  alist(
+    mpg ~ dnorm(mu, sigma),
+    mu <- a + b1 * pls1 + b2 * pls2,  # PLS components as predictors
+    pls1 ~ dnorm(0, 10),
+    pls2 ~ dnorm(0, 10),
+    a ~ dnorm(0, 10),
+    b1 ~ dnorm(0, 10),
+    b2 ~ dnorm(0, 10),
+    sigma ~ dnorm(0, 10)
+  ),
+  data = list(
+    tC = spec1$C,
+    pls1 = as.vector(spec1[, -1]),  # PLS components as predictor matrix
+    pls2 = as.vector(spec1[, -1])
+  )
+)
+
+# Summarize the model
+precis(bayesian_pls_model)
+
+# Plot the posterior distribution
+plot(bayesian_pls_model)
+```
+
+
+##MCMC of ISE-PLS
+```{r}
+
+# Define the Bayesian PLS model using ulam()
+bayesian_pls_model_ulam <- ulam(
+  alist(
+    mpg ~ dnorm(mu, sigma),
+    mu <- a + b1 * pls1 + b2 * pls2,  # PLS components as predictors
+    pls1 ~ dnorm(0, 10),
+    pls2 ~ dnorm(0, 10),
+    a ~ dnorm(0, 10),
+    b1 ~ dnorm(0, 10),
+    b2 ~ dnorm(0, 10),
+    sigma ~ dnorm(0, 10)
+  ),
+  data = list(
+    tC = spec1$C,
+    pls1 = as.vector(spec1[, -1]),  # PLS components as predictor matrix
+    pls2 = as.vector(spec1[, -1])
+  ),
+  chains = 4,  # Number of chains
+  cores = 2    # Number of cores for parallel computing
+)
+
+# Summarize the model
+precis(bayesian_pls_model_ulam)
+
+# Plot the posterior distribution
+plot(bayesian_pls_model_ulam)
+
+```
+
+
+##GA-PLS
