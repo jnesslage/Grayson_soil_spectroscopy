@@ -1,0 +1,296 @@
+---
+title: "Spectral Preprocessing and PLSR Model for Soil C"
+author: "Jacob Nesslage"
+date: "2024-03-06"
+output: html_document
+---
+```{r}
+require(prospectr)
+require(tidyverse)
+```
+
+## Read in data 
+
+```{r}
+fp <- "Z:/Projects/Grayson_NB/Outputs/soil_spectra/soil_spectra_2022_withenvs.csv"
+spec.l <- read_csv(fp)
+spec.l
+```
+
+## Wrangle data to wide format
+
+```{r}
+spec.wide <- spec.l %>% select (Wavelength, mean, Class1, Class2, Kit_Number, X, Y, transect,Moisture,Salinity,C,N,bulk_density) %>% 
+  pivot_wider(., names_from = Wavelength, values_from = mean)
+spec.wide
+```
+
+## Isolate spectra and convert to matrix format
+
+```{r convert spectra to matrix}
+spc <- as.matrix(spec.wide[,12:2162])/100
+
+# Plot the first spectrum
+plot(x = as.numeric(colnames(spc)),
+     y = spc[9, ],
+     type = "l",
+     lwd = 1.5,
+     xlab = "Wavelength", 
+     ylab = "Reflectance") 
+```
+
+## Apply Savitzky-Golay smoothing and calculate derivatives of spectra
+
+```{r Savitzky-Golay filtering and derivatives}
+sg <- savitzkyGolay(X = spc, p = 3, w = 25, m = 0)
+
+
+plot(x = as.numeric(colnames(spc)),
+     y = spc[9, ],
+     type = "l",
+     lwd = 1.5,
+     xlab = "Wavelength", 
+     ylab = "Reflectance",
+     xaxt = "n", yaxt = "n" )
+par(new = T)
+plot(x = as.numeric(colnames(sg)),
+     y = sg[5, ],
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Reflectance") 
+axis(4, col = "red")
+legend("topleft", legend = c("Raw spectra", "Filtered spectra"), lty = c(1, 1), col = 1:2)
+
+sg_1st <- savitzkyGolay(X = spc, p = 3, w = 25, m = 1)
+
+
+
+plot(x = as.numeric(colnames(sg_1st)),
+     y = sg_1st[2, ],
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Derivative of Reflectance") 
+
+
+
+
+```
+
+## Apply conntinuum removal algorithm to spectra 
+
+```{r continnum removal}
+# type of data: 'R' for reflectance (default), 'A' for absorbance
+cr <- continuumRemoval(X = sg, type = "R")
+# plot of the 10 first abs spectra
+matplot(as.numeric(colnames(sg)),
+        t(sg[1:4,]),
+        type = "l",
+        lty = 1,
+        ylim = c(0,1),
+        xlab="Wavelength", 
+        ylab="Reflectance")
+matlines(as.numeric(colnames(sg)), lty = 1, t(cr[1:4, ]))
+grid()
+```
+
+## Principal Component Analysis of Spectra
+
+```{r}
+spec.pca <- prcomp(sg_1st, scale = F,center=F)
+
+pca_df <- as.data.frame(spec.pca$x) %>%
+  select(PC1,PC2,PC3)
+
+specs <- spec.wide[,1:11]
+specs <-specs[-19,]
+pca_df <- pca_df[-19,] %>%
+  mutate(Kit_Number = specs$Kit_Number)
+
+  
+specdf <- left_join(specs,pca_df)
+#write.csv(specdf,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_PCA_sg_1st.csv")
+```
+
+
+
+## Merge metadata with Savitzky-Golay spectra, derivative spectra, and continuum removal spectra
+
+```{r merge dataframes together}
+metadata <- spec.wide[,1:11]
+
+final_sg <- cbind(metadata,sg) %>%
+  filter(C != is.na(C))
+#write.csv(final_sg,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_savitzky_golay_spectra.csv")
+
+final_sg_1st <- cbind(metadata,sg_1st) %>%
+  filter(C != is.na(C))
+#write.csv(final_sg_1st,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_savitzky_golay_derivative.csv")
+
+final_cr <- cbind(metadata,cr) %>%
+  filter(C != is.na(C))
+#write.csv(final_cr,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_continuum_removal.csv")
+
+final_pca <- cbind(metadata,t(pca_df)) %>%
+  filter(C != is.na(C))
+#write.csv(final_pca,"Z:/Projects/Grayson_NB/Outputs/soil_spectra/Grayson_PCA.csv")
+```
+
+## Calculate Pearson's Correlation for %C and each band for the three datasets
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations <- apply(as.data.frame(final_sg[,12:2138]), 2, function(column) cor(final_sg$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data <- data.frame(Wavelength = names(correlations), Correlation = correlations)
+
+# Summarize the results
+summary(correlation_data)
+
+#
+plot(x = correlation_data$Wavelength,
+     y = correlation_data$Correlation,
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Correlation of Spectra and %C") 
+```
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations <- apply(as.data.frame(final_sg_1st[,12:2138]), 2, function(column) cor(final_sg$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data <- data.frame(Wavelength = names(correlations), Correlation = correlations)
+
+# Summarize the results
+summary(correlation_data)
+
+#
+plot(x = correlation_data$Wavelength,
+     y = correlation_data$Correlation,
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Correlation of 1st Derivative and %C") 
+```
+
+```{r}
+# Calculate Pearson's correlation coefficient for each wavelength
+correlations <- apply(as.data.frame(final_cr[,12:2138]), 2, function(column) cor(final_cr$C, column,method="pearson"))
+
+# Create a data frame with wavelength and correlation values
+correlation_data <- data.frame(Wavelength = names(correlations), Correlation = correlations)
+
+# Summarize the results
+summary(correlation_data)
+
+#
+plot(x = correlation_data$Wavelength,
+     y = correlation_data$Correlation,
+     type = "l",
+     lwd = 1.5,col="red",
+     xlab = "Wavelength", 
+     ylab = "Correlation between Continuum Removal and %C")
+```
+
+
+## Models
+
+```{r}
+#Load required packages
+require(tidymodels)
+require(caret)
+require(spatialsample)
+
+#Remove extraneous data
+spec <- final_sg_1st[,-c(1:6)]
+sample_names <- colnames(spec)
+spec <- as.data.frame(spec)
+spec
+
+#Remove NAs
+spec <- na.omit(spec)
+
+#Remove all data besides C and add XY coordinates
+spec <- spec %>%
+  select(-Moisture,-Salinity,-N,-bulk_density) %>%
+  mutate(x=final_sg_1st$X) %>%
+  mutate(y=final_sg_1st$Y) 
+  
+#Set random seed
+set.seed(200)
+
+#Split data, stratified by C so that there are similar ranges in training and test data sets
+split <- initial_split(spec, prop = 0.7,strata=C)
+training=training(split)
+testing=testing(split)
+
+#Create sf object for spatial block cv
+  training_sf <- sf::st_as_sf(
+  training,
+  # "coords" is in x/y order -- so longitude goes first!
+  coords = c("x", "y"),
+  # Set our coordinate reference system to EPSG:4326,
+  # the standard WGS84 geodetic coordinate reference system
+  crs = 4326
+)
+
+#Do spatial block cross validation
+blocks <- spatial_block_cv(training_sf, v = 10,repeats=10)
+
+#Take spatial block cv output and make it machine readable for caret
+train_blockcv_caret <- rsample2caret(blocks)
+
+#Remove xy from training data -we have taken spatial correlation into account with spatial block cv
+training <- training %>%
+  select(-x,-y)
+
+#Define controls for model training
+ctrl <- trainControl(
+#  method = "cv", 
+  index = train_blockcv_caret$index,
+  indexOut = train_blockcv_caret$indexOut,
+#  repeats = 10,
+#  number=10
+)
+
+#Set another seed
+set.seed(123)
+
+#Train the PLSR model
+plsFit <- train(
+  C ~ ., #Predictor: C
+  data = training, #Training data is input
+  method = c("pls"), #PLSR model is method
+  preProc = c("center", "scale"), #Since we are dealing with variance and covariance, center and scale inputs
+  trControl = ctrl)
+plsFit
+summary(plsFit)
+plot(plsFit$resample)
+pred <- predict(plsFit,testing,type="raw")
+results <- as.data.frame(cbind(pred,testing[,1]))
+names(results) <- c("Predicted","Observed")
+
+plot(results$Predicted~results$Observed)
+#library(ggplot2)
+
+# Create a scatter plot
+ggplot(results, aes(x =Predicted, y = Observed)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  labs(x = "Predicted % C", y = "Observed % C") +
+  theme_bw()
+summary(lm(results$Predicted~results$Observed))
+RMSE(results$Predicted,results$Observed)
+```
+
+```{r}
+autoplot(blocks)
+```
+
+
+
+
